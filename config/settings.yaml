@@ -74,6 +74,48 @@ strategies:
     target_pct: 75
     opening_range_minutes: 15
     min_score: 72
+  vwap_pullback:
+    enabled: true
+    target_pct: 35
+    stop_loss_pct: 25
+    min_score: 72
+    entry_start: "09:45"
+    entry_end: "14:00"
+  gap_and_go:
+    enabled: true
+    target_pct: 45
+    stop_loss_pct: 30
+    min_score: 70
+    entry_start: "09:35"
+    entry_end: "11:30"
+  rsi_divergence:
+    enabled: true
+    target_pct: 40
+    stop_loss_pct: 25
+    min_score: 68
+    rsi_period: 14
+    lookback: 20
+  scalping:
+    enabled: true
+    target_pct: 20
+    stop_loss_pct: 15
+    min_score: 80
+    max_hold_minutes: 20
+    entry_start: "09:20"
+    entry_end: "14:30"
+  straddle_breakout:
+    enabled: true
+    target_pct: 50
+    stop_loss_pct: 35
+    min_score: 70
+    entry_start: "09:45"
+    entry_end: "13:30"
+  multi_timeframe:
+    enabled: true
+    target_pct: 50
+    stop_loss_pct: 30
+    min_score: 70
+    time_exit_minutes: 120
 
 alerts:
   telegram_enabled: false

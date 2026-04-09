@@ -30,8 +30,14 @@ from src.signals.signal_engine import SignalEngine
 from src.strategies.base import BaseStrategy, TradeSetup
 from src.strategies.breakout_buy import BreakoutBuyStrategy
 from src.strategies.expiry_day import ExpiryDayStrategy
+from src.strategies.gap_and_go import GapAndGoStrategy
 from src.strategies.momentum_buy import MomentumBuyStrategy
+from src.strategies.multi_timeframe import MultiTimeframeStrategy
 from src.strategies.oi_reversal import OIReversalStrategy
+from src.strategies.rsi_divergence import RSIDivergenceStrategy
+from src.strategies.scalping import ScalpingStrategy
+from src.strategies.straddle_breakout import StraddleBreakoutStrategy
+from src.strategies.vwap_pullback import VWAPPullbackStrategy
 from src.utils.helpers import (
     get_next_expiry,
     is_market_open,
@@ -158,6 +164,62 @@ class TradingEngine:
             s = ExpiryDayStrategy(
                 min_score=strat_cfg.get("expiry_day", {}).get("min_score", 72),
                 target_pct=strat_cfg.get("expiry_day", {}).get("target_pct", 75),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("vwap_pullback", {}).get("enabled", True):
+            s = VWAPPullbackStrategy(
+                min_score=strat_cfg.get("vwap_pullback", {}).get("min_score", 72),
+                target_pct=strat_cfg.get("vwap_pullback", {}).get("target_pct", 35),
+                stop_loss_pct=strat_cfg.get("vwap_pullback", {}).get("stop_loss_pct", 25),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("gap_and_go", {}).get("enabled", True):
+            s = GapAndGoStrategy(
+                min_score=strat_cfg.get("gap_and_go", {}).get("min_score", 70),
+                target_pct=strat_cfg.get("gap_and_go", {}).get("target_pct", 45),
+                stop_loss_pct=strat_cfg.get("gap_and_go", {}).get("stop_loss_pct", 30),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("rsi_divergence", {}).get("enabled", True):
+            s = RSIDivergenceStrategy(
+                min_score=strat_cfg.get("rsi_divergence", {}).get("min_score", 68),
+                target_pct=strat_cfg.get("rsi_divergence", {}).get("target_pct", 40),
+                stop_loss_pct=strat_cfg.get("rsi_divergence", {}).get("stop_loss_pct", 25),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("scalping", {}).get("enabled", True):
+            s = ScalpingStrategy(
+                min_score=strat_cfg.get("scalping", {}).get("min_score", 80),
+                target_pct=strat_cfg.get("scalping", {}).get("target_pct", 20),
+                stop_loss_pct=strat_cfg.get("scalping", {}).get("stop_loss_pct", 15),
+                max_hold_minutes=strat_cfg.get("scalping", {}).get("max_hold_minutes", 20),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("straddle_breakout", {}).get("enabled", True):
+            s = StraddleBreakoutStrategy(
+                min_score=strat_cfg.get("straddle_breakout", {}).get("min_score", 70),
+                target_pct=strat_cfg.get("straddle_breakout", {}).get("target_pct", 50),
+                stop_loss_pct=strat_cfg.get("straddle_breakout", {}).get("stop_loss_pct", 35),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("multi_timeframe", {}).get("enabled", True):
+            s = MultiTimeframeStrategy(
+                min_score=strat_cfg.get("multi_timeframe", {}).get("min_score", 70),
+                target_pct=strat_cfg.get("multi_timeframe", {}).get("target_pct", 50),
+                stop_loss_pct=strat_cfg.get("multi_timeframe", {}).get("stop_loss_pct", 30),
+                time_exit_minutes=strat_cfg.get("multi_timeframe", {}).get("time_exit_minutes", 120),
             )
             self.strategies.append(s)
             self.position_manager.register_strategy(s)
