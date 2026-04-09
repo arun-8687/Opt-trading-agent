@@ -1,0 +1,94 @@
+broker:
+  name: angel_one
+  # Credentials loaded from .env file
+  rate_limit_per_sec: 10
+  instrument_cache_hours: 24
+
+trading:
+  mode: paper  # paper | live
+  capital: 100000
+  risk_per_trade_pct: 2.0
+  max_daily_loss_pct: 5.0
+  max_open_positions: 5
+  max_positions_per_instrument: 2
+  trading_start: "09:20"
+  trading_end: "15:00"
+  hard_cutoff: "15:00"
+  no_new_trades_after: "14:30"
+
+signals:
+  min_score: 75
+  cooldown_minutes: 15
+  primary_timeframe: "5min"
+  confirmation_timeframe: "15min"
+  weights:
+    technical: 0.40
+    oi_analysis: 0.30
+    iv_analysis: 0.15
+    price_action: 0.15
+  min_categories_agree: 3  # At least 3 out of 4 must agree on direction
+
+options:
+  preferred_strikes_otm: 2
+  min_expiry_days_index: 2
+  min_expiry_days_stock: 5
+  max_bid_ask_spread_pct: 2.0
+  min_oi: 5000
+  min_volume: 1000
+  min_premium: 5.0
+  max_premium: 500.0
+
+stop_loss:
+  initial_pct: 30
+  trailing_activation_pct: 20
+  trailing_lock_pct: 50
+  time_based_exit_minutes: 60
+  hard_cutoff_time: "15:00"
+  underlying_sl_pct: 1.0
+
+scanner:
+  enabled: true
+  scan_times: ["09:16", "10:00", "12:00"]
+  max_stocks_to_monitor: 15
+  min_option_oi: 5000
+  min_volume_ratio: 1.5
+  min_adx: 20
+
+strategies:
+  momentum_buy:
+    enabled: true
+    target_pct: 40
+    min_score: 75
+  breakout_buy:
+    enabled: true
+    target_pct: 50
+    volume_surge_ratio: 2.0
+    min_score: 78
+  oi_reversal:
+    enabled: true
+    target_pct: 35
+    min_oi_change_pct: 10
+    min_score: 80
+  expiry_day:
+    enabled: true
+    target_pct: 75
+    opening_range_minutes: 15
+    min_score: 72
+
+alerts:
+  telegram_enabled: false
+  # Credentials loaded from .env file
+  alert_on_signal: true
+  alert_on_order: true
+  alert_on_sl_hit: true
+  alert_on_target_hit: true
+  alert_on_daily_summary: true
+
+logging:
+  level: INFO
+  file: data/logs/trading.log
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
+
+database:
+  path: data/trading.db

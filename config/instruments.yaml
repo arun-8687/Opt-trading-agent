@@ -1,0 +1,46 @@
+# Index instruments to always monitor
+indices:
+  - symbol: NIFTY
+    exchange: NSE
+    expiry_day: thursday  # Weekly expiry
+    lot_size: 25
+    strike_interval: 50
+  - symbol: BANKNIFTY
+    exchange: NSE
+    expiry_day: wednesday  # Weekly expiry
+    lot_size: 15
+    strike_interval: 100
+  - symbol: FINNIFTY
+    exchange: NSE
+    expiry_day: tuesday
+    lot_size: 25
+    strike_interval: 50
+  - symbol: MIDCPNIFTY
+    exchange: NSE
+    expiry_day: monday
+    lot_size: 50
+    strike_interval: 25
+
+# Stock watchlist (scanned for opportunities)
+# Full F&O list is loaded from NSE, but these are priority stocks
+priority_stocks:
+  - RELIANCE
+  - TCS
+  - HDFCBANK
+  - INFY
+  - ICICIBANK
+  - SBIN
+  - BHARTIARTL
+  - ITC
+  - KOTAKBANK
+  - LT
+  - AXISBANK
+  - HINDUNILVR
+  - BAJFINANCE
+  - MARUTI
+  - TATAMOTORS
+  - TATASTEEL
+  - ADANIENT
+  - WIPRO
+  - HCLTECH
+  - TECHM
