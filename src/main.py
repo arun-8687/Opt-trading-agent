@@ -38,6 +38,13 @@ from src.strategies.rsi_divergence import RSIDivergenceStrategy
 from src.strategies.scalping import ScalpingStrategy
 from src.strategies.straddle_breakout import StraddleBreakoutStrategy
 from src.strategies.vwap_pullback import VWAPPullbackStrategy
+from src.strategies.nifty_event_day import NiftyEventDayStrategy
+from src.strategies.nifty_gamma_blast import NiftyGammaBlastStrategy
+from src.strategies.nifty_gift_gap import NiftyGIFTGapStrategy
+from src.strategies.nifty_oi_wall import NiftyOIWallStrategy
+from src.strategies.nifty_orb import NiftyORBStrategy
+from src.strategies.nifty_pcr_reversal import NiftyPCRReversalStrategy
+from src.strategies.nifty_vix_regime import NiftyVIXRegimeStrategy
 from src.utils.helpers import (
     get_next_expiry,
     is_market_open,
@@ -220,6 +227,76 @@ class TradingEngine:
                 target_pct=strat_cfg.get("multi_timeframe", {}).get("target_pct", 50),
                 stop_loss_pct=strat_cfg.get("multi_timeframe", {}).get("stop_loss_pct", 30),
                 time_exit_minutes=strat_cfg.get("multi_timeframe", {}).get("time_exit_minutes", 120),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        # --- NIFTY-specific strategies ---
+        if strat_cfg.get("nifty_orb", {}).get("enabled", True):
+            s = NiftyORBStrategy(
+                min_score=strat_cfg.get("nifty_orb", {}).get("min_score", 72),
+                target_pct=strat_cfg.get("nifty_orb", {}).get("target_pct", 40),
+                stop_loss_pct=strat_cfg.get("nifty_orb", {}).get("stop_loss_pct", 30),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("nifty_gamma_blast", {}).get("enabled", True):
+            s = NiftyGammaBlastStrategy(
+                min_score=strat_cfg.get("nifty_gamma_blast", {}).get("min_score", 65),
+                target_pct=strat_cfg.get("nifty_gamma_blast", {}).get("target_pct", 100),
+                stop_loss_pct=strat_cfg.get("nifty_gamma_blast", {}).get("stop_loss_pct", 40),
+                max_consolidation_range=strat_cfg.get("nifty_gamma_blast", {}).get("max_consolidation_range", 50),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("nifty_vix_regime", {}).get("enabled", True):
+            s = NiftyVIXRegimeStrategy(
+                min_score=strat_cfg.get("nifty_vix_regime", {}).get("min_score", 72),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("nifty_pcr_reversal", {}).get("enabled", True):
+            s = NiftyPCRReversalStrategy(
+                min_score=strat_cfg.get("nifty_pcr_reversal", {}).get("min_score", 68),
+                target_pct=strat_cfg.get("nifty_pcr_reversal", {}).get("target_pct", 40),
+                stop_loss_pct=strat_cfg.get("nifty_pcr_reversal", {}).get("stop_loss_pct", 25),
+                bullish_pcr_threshold=strat_cfg.get("nifty_pcr_reversal", {}).get("bullish_pcr_threshold", 1.3),
+                bearish_pcr_threshold=strat_cfg.get("nifty_pcr_reversal", {}).get("bearish_pcr_threshold", 0.7),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("nifty_gift_gap", {}).get("enabled", True):
+            s = NiftyGIFTGapStrategy(
+                min_score=strat_cfg.get("nifty_gift_gap", {}).get("min_score", 70),
+                min_gap_pct=strat_cfg.get("nifty_gift_gap", {}).get("min_gap_pct", 0.5),
+                target_pct=strat_cfg.get("nifty_gift_gap", {}).get("target_pct", 45),
+                stop_loss_pct=strat_cfg.get("nifty_gift_gap", {}).get("stop_loss_pct", 30),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("nifty_event_day", {}).get("enabled", True):
+            s = NiftyEventDayStrategy(
+                min_score=strat_cfg.get("nifty_event_day", {}).get("min_score", 65),
+                pre_event_target_pct=strat_cfg.get("nifty_event_day", {}).get("pre_event_target_pct", 30),
+                post_event_target_pct=strat_cfg.get("nifty_event_day", {}).get("post_event_target_pct", 60),
+                post_event_sl_pct=strat_cfg.get("nifty_event_day", {}).get("post_event_sl_pct", 40),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("nifty_oi_wall", {}).get("enabled", True):
+            s = NiftyOIWallStrategy(
+                min_score=strat_cfg.get("nifty_oi_wall", {}).get("min_score", 68),
+                bounce_target_pct=strat_cfg.get("nifty_oi_wall", {}).get("bounce_target_pct", 35),
+                break_target_pct=strat_cfg.get("nifty_oi_wall", {}).get("break_target_pct", 50),
+                bounce_sl_pct=strat_cfg.get("nifty_oi_wall", {}).get("bounce_sl_pct", 25),
+                break_sl_pct=strat_cfg.get("nifty_oi_wall", {}).get("break_sl_pct", 30),
+                proximity_points=strat_cfg.get("nifty_oi_wall", {}).get("proximity_points", 50),
             )
             self.strategies.append(s)
             self.position_manager.register_strategy(s)

@@ -13,10 +13,10 @@ DEFAULT_TRADING_START = time(9, 20)  # Skip first 5 min volatility
 DEFAULT_TRADING_END = time(15, 0)    # No new trades in last 30 min
 DEFAULT_HARD_CUTOFF = time(15, 0)    # Exit all day trades
 
-# Index Lot Sizes (updated periodically by NSE)
+# Index Lot Sizes (updated Jan 2026 by NSE)
 INDEX_LOT_SIZES = {
-    "NIFTY": 25,
-    "BANKNIFTY": 15,
+    "NIFTY": 65,
+    "BANKNIFTY": 30,
     "FINNIFTY": 25,
     "MIDCPNIFTY": 50,
 }

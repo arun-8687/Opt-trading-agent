@@ -116,6 +116,59 @@ strategies:
     stop_loss_pct: 30
     min_score: 70
     time_exit_minutes: 120
+  # --- NIFTY-specific strategies ---
+  nifty_orb:
+    enabled: true
+    target_pct: 40
+    stop_loss_pct: 30
+    min_score: 72
+    min_vix: 13.0
+    entry_start: "09:31"
+    entry_end: "12:00"
+  nifty_gamma_blast:
+    enabled: true
+    target_pct: 100
+    stop_loss_pct: 40
+    min_score: 65
+    max_consolidation_range: 50
+    min_premium: 2.0
+    max_premium: 60.0
+    entry_start: "13:45"
+    entry_end: "15:00"
+  nifty_vix_regime:
+    enabled: true
+    min_score: 72
+    entry_start: "09:30"
+    entry_end: "14:00"
+  nifty_pcr_reversal:
+    enabled: true
+    target_pct: 40
+    stop_loss_pct: 25
+    min_score: 68
+    bullish_pcr_threshold: 1.3
+    bearish_pcr_threshold: 0.7
+  nifty_gift_gap:
+    enabled: true
+    min_gap_pct: 0.5
+    target_pct: 45
+    stop_loss_pct: 30
+    min_score: 70
+    entry_start: "09:35"
+    entry_end: "11:30"
+  nifty_event_day:
+    enabled: true
+    min_score: 65
+    pre_event_target_pct: 30
+    post_event_target_pct: 60
+    post_event_sl_pct: 40
+  nifty_oi_wall:
+    enabled: true
+    bounce_target_pct: 35
+    break_target_pct: 50
+    bounce_sl_pct: 25
+    break_sl_pct: 30
+    min_score: 68
+    proximity_points: 50
 
 alerts:
   telegram_enabled: false
