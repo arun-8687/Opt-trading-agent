@@ -336,6 +336,9 @@ class TradingEngine:
         self._running = True
         self.risk_manager.reset_daily()
 
+        # Attach engine to Telegram for command handling
+        self.telegram.attach_engine(self)
+
         self.telegram.send(
             f"🚀 <b>ENGINE STARTED</b>\n"
             f"Date: {date.today()}\n"
@@ -831,6 +834,7 @@ class TradingEngine:
         # Logout broker
         self.broker.logout()
         self.telegram.send("🛑 <b>ENGINE STOPPED</b>\nTrading engine shut down.")
+        self.telegram.stop_polling()
         logger.info("Trading engine shut down")
 
     def _shutdown_handler(self, signum, frame):

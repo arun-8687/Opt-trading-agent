@@ -303,6 +303,16 @@ class DataStore:
             )
             return cursor.lastrowid
 
+    def get_todays_signals(self) -> pd.DataFrame:
+        """Get all signals generated today."""
+        today = date.today().isoformat()
+        with self._connect() as conn:
+            return pd.read_sql_query(
+                "SELECT * FROM signals WHERE timestamp >= ? ORDER BY timestamp",
+                conn,
+                params=(today,),
+            )
+
     # --- OI Snapshot Operations ---
 
     def save_oi_snapshot(self, snapshot: dict):
