@@ -171,7 +171,7 @@ strategies:
     proximity_points: 50
 
 alerts:
-  telegram_enabled: false
+  telegram_enabled: true
   # Credentials loaded from .env file
   alert_on_signal: true
   alert_on_order: true

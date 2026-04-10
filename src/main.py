@@ -50,6 +50,7 @@ from src.utils.helpers import (
     is_market_open,
     is_trading_window,
 )
+from src.alerts.telegram_bot import TelegramAlerts
 from src.utils.logger import get_logger, setup_logger
 
 logger = get_logger("main")
@@ -140,6 +141,13 @@ class TradingEngine:
             self.broker, self.historical,
             max_stocks=scanner_cfg.get("max_stocks_to_monitor", 15),
         )
+
+        # Alerts
+        alerts_cfg = self.config.get("alerts", {})
+        self.telegram = TelegramAlerts(
+            enabled=alerts_cfg.get("telegram_enabled", True),
+        )
+        self._alert_cfg = alerts_cfg
 
         logger.info(f"Trading engine initialized | mode={mode} | capital={capital}")
 
@@ -318,6 +326,7 @@ class TradingEngine:
         # Login to broker
         if not self.broker.login():
             logger.error("Broker login failed. Exiting.")
+            self.telegram.send("❌ <b>ENGINE FAILED</b>\nBroker login failed.")
             return
 
         # Setup graceful shutdown
@@ -327,10 +336,18 @@ class TradingEngine:
         self._running = True
         self.risk_manager.reset_daily()
 
+        self.telegram.send(
+            f"🚀 <b>ENGINE STARTED</b>\n"
+            f"Date: {date.today()}\n"
+            f"Mode: {self.config['trading']['mode']}\n"
+            f"Capital: ₹{self.config['trading'].get('capital', 100000):,.0f}"
+        )
+
         try:
             self._run_loop()
         except Exception as e:
             logger.error(f"Fatal error: {e}", exc_info=True)
+            self.telegram.send(f"🔥 <b>FATAL ERROR</b>\n{str(e)[:200]}")
         finally:
             self._shutdown()
 
@@ -386,6 +403,10 @@ class TradingEngine:
                 open_positions = self.position_manager.get_open_positions()
                 if open_positions:
                     logger.warning("HARD CUTOFF: Closing all positions")
+                    self.telegram.send(
+                        f"⏰ <b>HARD CUTOFF</b>\n"
+                        f"Closing {len(open_positions)} positions at {now.strftime('%H:%M')}"
+                    )
                     self.position_manager.close_all_positions("HARD_CUTOFF")
 
             time_module.sleep(interval_seconds)
@@ -621,6 +642,15 @@ class TradingEngine:
         if not sig.is_actionable or not sig.option_type:
             return
 
+        # Alert on actionable signal
+        if self._alert_cfg.get("alert_on_signal", True):
+            self.telegram.send_signal_alert(
+                symbol=symbol,
+                direction=sig.direction,
+                score=sig.score,
+                option_type=sig.option_type,
+            )
+
         # Try each strategy
         now = datetime.now()
         for strategy in self.strategies:
@@ -658,6 +688,15 @@ class TradingEngine:
             position = self.position_manager.open_position(setup)
             if position:
                 self._entry_spot_prices[symbol] = spot_price
+                # Alert on order
+                if self._alert_cfg.get("alert_on_order", True):
+                    self.telegram.send_order_alert(
+                        action="BUY",
+                        symbol=position.trading_symbol,
+                        price=position.entry_price,
+                        quantity=position.quantity,
+                        strategy=position.strategy,
+                    )
                 break  # Only one trade per symbol per signal
 
     def _update_positions(self):
@@ -709,9 +748,32 @@ class TradingEngine:
             if spot > 0:
                 spot_prices[sym] = spot
 
+        # Track closed count before update to detect new exits
+        closed_before = len(self.position_manager.get_closed_positions())
+
         self.position_manager.update_positions(
             price_map, spot_prices, self._entry_spot_prices
         )
+
+        # Send exit alerts for newly closed positions
+        closed_positions = self.position_manager.get_closed_positions()
+        if len(closed_positions) > closed_before:
+            for pos in closed_positions[closed_before:]:
+                sl_hit = "SL" in (pos.exit_reason or "").upper()
+                tp_hit = "TARGET" in (pos.exit_reason or "").upper()
+                should_alert = (
+                    (sl_hit and self._alert_cfg.get("alert_on_sl_hit", True))
+                    or (tp_hit and self._alert_cfg.get("alert_on_target_hit", True))
+                    or (not sl_hit and not tp_hit)
+                )
+                if should_alert:
+                    self.telegram.send_exit_alert(
+                        symbol=pos.trading_symbol,
+                        exit_price=pos.exit_price,
+                        pnl=pos.pnl,
+                        pnl_pct=pos.pnl_pct,
+                        reason=pos.exit_reason or "UNKNOWN",
+                    )
 
         # Update daily P&L in risk manager
         realized = self.position_manager.get_realized_pnl()
@@ -746,6 +808,14 @@ class TradingEngine:
             logger.info(f"Win Rate: {win_rate:.0f}%")
         logger.info("=" * 60)
 
+        if self._alert_cfg.get("alert_on_daily_summary", True):
+            self.telegram.send_daily_summary(
+                total_pnl=total_pnl,
+                total_trades=len(closed),
+                winning=winning,
+                losing=losing,
+            )
+
     def _shutdown(self):
         """Clean shutdown."""
         self._running = False
@@ -760,6 +830,7 @@ class TradingEngine:
 
         # Logout broker
         self.broker.logout()
+        self.telegram.send("🛑 <b>ENGINE STOPPED</b>\nTrading engine shut down.")
         logger.info("Trading engine shut down")
 
     def _shutdown_handler(self, signum, frame):
