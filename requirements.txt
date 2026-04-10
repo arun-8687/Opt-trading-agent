@@ -3,8 +3,8 @@ smartapi-python==1.3.6
 pyotp==2.9.0
 
 # Data Processing
-pandas==2.2.3
-numpy==1.26.4
+pandas>=3.0.2
+numpy>=2.4.4
 pandas-ta==0.3.14b1
 
 # Options Greeks

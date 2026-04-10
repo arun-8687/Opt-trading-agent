@@ -16,8 +16,12 @@ venv/
 data/historical/
 data/trades/
 data/logs/
+data/instruments.json
 *.db
 *.sqlite3
+
+# Logs
+logs/
 
 # IDE
 .vscode/

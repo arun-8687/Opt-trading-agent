@@ -64,7 +64,7 @@ class OIReversalStrategy(BaseStrategy):
                 details_lower = comp.details.lower()
                 if any(
                     kw in details_lower
-                    for kw in ["unwinding", "short covering", "put writing"]
+                    for kw in ["unwinding", "short covering", "put writing", "call writing"]
                 ):
                     has_unwinding = True
                     break

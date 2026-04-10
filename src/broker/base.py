@@ -42,6 +42,8 @@ class BaseBroker(ABC):
         symbol: str,
         expiry: date,
         exchange: str = "NFO",
+        strikes_around_atm: int = 10,
+        spot_price: float = 0.0,
     ) -> list[OptionChainRow]:
         """Get full options chain for a symbol and expiry."""
         ...
@@ -107,6 +109,15 @@ class BaseBroker(ABC):
     @abstractmethod
     def lookup_token(self, exchange: str, trading_symbol: str) -> str:
         """Look up the broker token for a trading symbol."""
+        ...
+
+    @abstractmethod
+    def lookup_instrument(self, exchange: str, name: str) -> tuple[str, str]:
+        """Look up token and actual trading symbol for an instrument.
+
+        Returns (token, trading_symbol) tuple. For NSE/BSE equities the
+        trading_symbol may differ from name (e.g. 'RELIANCE-EQ' vs 'RELIANCE').
+        """
         ...
 
     @abstractmethod

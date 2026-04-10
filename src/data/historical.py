@@ -50,12 +50,23 @@ class HistoricalDataManager:
         )
 
         if not cached.empty and len(cached) > 10:
-            last_cached = cached["timestamp"].max()
-            # If cache is recent enough (within 2 candle periods), use it
+            last_cached = pd.Timestamp(cached["timestamp"].max())
+            first_cached = pd.Timestamp(cached["timestamp"].min())
+            # Strip timezone so comparison with tz-naive from/to_date works correctly
+            if last_cached.tzinfo is not None:
+                last_cached = last_cached.tz_convert(None)
+            if first_cached.tzinfo is not None:
+                first_cached = first_cached.tz_convert(None)
+
+            # If cache is recent enough (within 2 candle periods), use it —
+            # but only if the cached range covers at least 90% of the requested range.
             gap_minutes = {"1min": 2, "5min": 10, "15min": 30, "1day": 1440}
             max_gap = timedelta(minutes=gap_minutes.get(interval, 10))
+            requested_range = (to_date - from_date).total_seconds()
+            covered_range = (last_cached - first_cached).total_seconds()
+            coverage = covered_range / requested_range if requested_range > 0 else 1.0
 
-            if (to_date - last_cached) <= max_gap:
+            if (to_date - last_cached) <= max_gap and coverage >= 0.9:
                 logger.debug(f"Using cached data for {symbol} ({len(cached)} candles)")
                 return cached
 

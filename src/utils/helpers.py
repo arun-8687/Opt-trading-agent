@@ -13,6 +13,24 @@ from src.utils.constants import (
     MARKET_OPEN,
 )
 
+# Module-level expiry registry — populated by the broker from the instrument master.
+# Keys are symbol names (e.g. "NIFTY"), values are sorted lists of available expiry dates.
+# When populated, get_next_expiry() uses this data instead of the day-of-week algorithm,
+# which naturally handles NSE holiday adjustments.
+_instrument_expiries: dict[str, list[date]] = {}
+
+
+def register_instrument_expiries(
+    symbol: str,
+    expiry_dates: list[date],
+) -> None:
+    """Register available expiry dates for a symbol.
+
+    Called by the broker after loading the instrument master so that
+    get_next_expiry() can return real, holiday-adjusted dates.
+    """
+    _instrument_expiries[symbol] = sorted(expiry_dates)
+
 
 def is_market_open(now: Optional[datetime] = None) -> bool:
     """Check if NSE market is currently open."""
@@ -45,13 +63,23 @@ def get_next_expiry(
 ) -> date:
     """Calculate the next expiry date for an index/stock.
 
-    For index options with weekly expiry, finds the next occurrence
-    of the designated expiry day. For monthly expiry (stocks),
-    finds the last Thursday of the current/next month.
+    If the broker has populated the instrument-expiry registry (via
+    register_instrument_expiries), uses real exchange-listed dates so that
+    NSE holiday adjustments are handled automatically.
+
+    Falls back to a day-of-week algorithm when the registry is empty.
     """
     if from_date is None:
         from_date = date.today()
 
+    # --- Use instrument-master data when available ---
+    if symbol in _instrument_expiries:
+        for exp_date in _instrument_expiries[symbol]:
+            if exp_date >= from_date:
+                return exp_date
+        # All cached expiries are in the past; fall through to algorithm
+
+    # --- Algorithmic fallback ---
     if weekly and symbol in INDEX_EXPIRY_DAYS:
         expiry_weekday = INDEX_EXPIRY_DAYS[symbol]
         days_ahead = expiry_weekday - from_date.weekday()

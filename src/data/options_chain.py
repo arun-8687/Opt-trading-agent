@@ -59,7 +59,7 @@ class OptionsChainManager:
         Returns comprehensive analysis including PCR, max pain,
         OI concentrations, and IV data.
         """
-        chain = self.broker.get_option_chain(symbol, expiry, exchange)
+        chain = self.broker.get_option_chain(symbol, expiry, exchange, spot_price=spot_price)
 
         if not chain:
             return OptionsChainAnalysis(

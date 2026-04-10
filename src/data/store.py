@@ -141,13 +141,18 @@ class DataStore:
 
         with self._connect() as conn:
             for _, row in df.iterrows():
+                # Normalize timestamp to tz-naive string (ISO format without offset)
+                ts = pd.Timestamp(row["timestamp"])
+                if ts.tzinfo is not None:
+                    ts = ts.tz_convert("UTC").tz_localize(None)
+                ts_str = ts.strftime("%Y-%m-%d %H:%M:%S")
                 conn.execute(
                     """INSERT OR REPLACE INTO candles
                     (symbol, exchange, interval, timestamp, open, high, low, close, volume, oi)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         symbol, exchange, interval,
-                        str(row["timestamp"]),
+                        ts_str,
                         float(row["open"]), float(row["high"]),
                         float(row["low"]), float(row["close"]),
                         int(row["volume"]),
@@ -181,7 +186,12 @@ class DataStore:
             df = pd.read_sql_query(query, conn, params=params)
 
         if not df.empty:
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            # Parse mixed timestamp formats (tz-aware legacy + tz-naive new entries).
+            # utc=True converts all to UTC, then strip tz for tz-naive comparisons.
+            df["timestamp"] = (
+                pd.to_datetime(df["timestamp"], format="mixed", utc=True)
+                .dt.tz_localize(None)
+            )
             df = df.sort_values("timestamp").reset_index(drop=True)
 
         return df

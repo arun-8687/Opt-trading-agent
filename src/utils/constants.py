@@ -30,12 +30,19 @@ INDEX_STRIKE_INTERVALS = {
 }
 
 # Weekly Expiry Days (0=Monday, 6=Sunday)
+# NOTE: As of late 2023, SEBI allows only one weekly index contract per exchange.
+# NSE kept NIFTY weekly (Thursday). BANKNIFTY, FINNIFTY, MIDCPNIFTY are monthly only.
+# The algorithmic fallback in get_next_expiry() uses these values; live code uses
+# the instrument master registry which handles holiday adjustments automatically.
 INDEX_EXPIRY_DAYS = {
-    "NIFTY": 3,       # Thursday
-    "BANKNIFTY": 2,    # Wednesday
-    "FINNIFTY": 1,     # Tuesday
-    "MIDCPNIFTY": 0,   # Monday
+    "NIFTY": 3,           # Thursday (weekly)
+    "BANKNIFTY": 2,        # Wednesday (monthly — last Wed of month)
+    "FINNIFTY": 1,         # Tuesday (monthly — last Tue of month)
+    "MIDCPNIFTY": 0,       # Monday (monthly — last Mon of month)
 }
+
+# Symbols with only monthly expiry (no weekly contracts)
+MONTHLY_ONLY_SYMBOLS = {"BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"}
 
 # Exchange Codes
 EXCHANGE_NSE = "NSE"

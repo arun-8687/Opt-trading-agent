@@ -70,6 +70,11 @@ class TradingEngine:
         # Track entry spot prices for underlying-based SL
         self._entry_spot_prices: dict[str, float] = {}
 
+        # Track NIFTY strategy state
+        self._orb_range_set = False
+        self._nifty_prev_close: float = 0.0
+        self._nifty_chain_cache = None  # Avoid duplicate NIFTY chain fetch
+
     def _load_config(self, config_path: str) -> dict:
         """Load configuration from YAML file."""
         with open(config_path, "r") as f:
@@ -337,6 +342,11 @@ class TradingEngine:
         while self._running:
             now = datetime.now()
 
+            # Ensure broker session is still valid (refresh/re-login if needed)
+            if not self.broker.ensure_session():
+                logger.error("Could not maintain broker session. Stopping engine.")
+                break
+
             # Wait for market to open
             if not is_market_open(now):
                 if now.time() < time(9, 15):
@@ -390,24 +400,188 @@ class TradingEngine:
         if not scan_results.empty:
             symbols_to_check.extend(scan_results["symbol"].tolist()[:10])
 
+        # Batch-resolve tokens and fetch spot prices in one go
+        token_map: dict[str, str] = {}  # symbol -> token
+        for symbol in symbols_to_check:
+            tok = self.broker.lookup_token("NSE", symbol)
+            if tok:
+                token_map[symbol] = tok
+
+        spot_ltp: dict[str, float] = {}
+        if token_map and hasattr(self.broker, "_batch_get_ltp"):
+            ltp_results = self.broker._batch_get_ltp(
+                {"NSE": list(token_map.values())}
+            )
+            for sym, tok in token_map.items():
+                spot_ltp[sym] = ltp_results.get(tok, 0.0)
+        else:
+            for sym, tok in token_map.items():
+                spot_ltp[sym] = self.broker.get_ltp("NSE", sym, tok)
+
+        # Prepare NIFTY-specific strategy state before processing symbols
+        nifty_spot = spot_ltp.get("NIFTY", 0.0)
+        self._nifty_chain_cache = None
+        if nifty_spot > 0:
+            try:
+                nifty_expiry = get_next_expiry("NIFTY")
+                self._nifty_chain_cache = self.options_chain.get_chain_analysis(
+                    "NIFTY", nifty_spot, nifty_expiry
+                )
+                self._prepare_nifty_strategies(nifty_spot, self._nifty_chain_cache)
+            except Exception as e:
+                logger.warning(f"Error preparing NIFTY strategies: {e}")
+
         for symbol in symbols_to_check:
             try:
-                self._process_single_symbol(symbol)
+                tok = token_map.get(symbol)
+                price = spot_ltp.get(symbol, 0.0)
+                if tok and price > 0:
+                    self._process_single_symbol(symbol, tok, price)
             except Exception as e:
                 logger.error(f"Error processing {symbol}: {e}")
 
-    def _process_single_symbol(self, symbol: str):
-        """Generate signal and potentially trade for a single symbol."""
-        # Determine exchange
-        exchange = "NSE"
-        token = self.broker.lookup_token(exchange, symbol)
-        if not token:
-            return
+    def _prepare_nifty_strategies(self, nifty_spot: float, nifty_chain_analysis):
+        """Set up NIFTY-specific strategy state once per loop iteration.
 
-        # Get spot price
-        spot_price = self.broker.get_ltp(exchange, symbol, token)
+        Wires: nifty_orb, nifty_gamma_blast, nifty_vix_regime,
+               nifty_pcr_reversal, nifty_gift_gap, nifty_event_day, nifty_oi_wall
+        """
+        now = datetime.now()
+        today = date.today()
+
+        for s in self.strategies:
+            # --- PCR Reversal: feed PCR + OI walls from chain analysis ---
+            if isinstance(s, NiftyPCRReversalStrategy) and nifty_chain_analysis:
+                s.set_pcr_data(
+                    pcr=nifty_chain_analysis.pcr_oi,
+                    max_put_oi_strike=nifty_chain_analysis.max_pe_oi_strike,
+                    max_call_oi_strike=nifty_chain_analysis.max_ce_oi_strike,
+                )
+
+            # --- OI Wall: feed max OI strikes from chain analysis ---
+            if isinstance(s, NiftyOIWallStrategy) and nifty_chain_analysis:
+                s.set_oi_walls(
+                    max_put_oi_strike=nifty_chain_analysis.max_pe_oi_strike,
+                    max_call_oi_strike=nifty_chain_analysis.max_ce_oi_strike,
+                    put_oi=nifty_chain_analysis.total_pe_oi,
+                    call_oi=nifty_chain_analysis.total_ce_oi,
+                )
+
+            # --- VIX Regime: fetch India VIX LTP ---
+            if isinstance(s, NiftyVIXRegimeStrategy):
+                try:
+                    vix_ltp = self.broker.get_ltp("NSE", "India VIX", "99926017")
+                    if vix_ltp > 0:
+                        # Approximate VIX change from yesterday's daily candle
+                        vix_daily = self.historical.get_daily_candles(
+                            "India VIX", "99926017", "NSE", days=3
+                        )
+                        vix_change = 0.0
+                        if not vix_daily.empty and len(vix_daily) >= 2:
+                            prev_close = vix_daily["close"].iloc[-2]
+                            if prev_close > 0:
+                                vix_change = vix_ltp - prev_close
+                        s.set_vix(vix_ltp, vix_change)
+                except Exception as e:
+                    logger.debug(f"Could not fetch VIX: {e}")
+
+            # --- ORB: set from first 15min candle of NIFTY ---
+            if isinstance(s, NiftyORBStrategy) and not self._orb_range_set:
+                if now.time() >= time(9, 31):
+                    nifty_tok = self.broker.lookup_token("NSE", "NIFTY")
+                    if nifty_tok:
+                        df_15 = self.historical.get_intraday_candles(
+                            "NIFTY", nifty_tok, "NSE", "15min", days=1
+                        )
+                        if not df_15.empty:
+                            today_candles = df_15[
+                                df_15["timestamp"].dt.date == today
+                            ] if "timestamp" in df_15.columns else df_15
+                            if not today_candles.empty:
+                                orb_high = today_candles["high"].iloc[0]
+                                orb_low = today_candles["low"].iloc[0]
+                                s.set_orb_range(orb_high, orb_low)
+                                self._orb_range_set = True
+
+            # --- Gamma Blast: set day's high/low from today's candles ---
+            if isinstance(s, NiftyGammaBlastStrategy) and nifty_spot > 0:
+                nifty_tok = self.broker.lookup_token("NSE", "NIFTY")
+                if nifty_tok:
+                    df_5 = self.historical.get_intraday_candles(
+                        "NIFTY", nifty_tok, "NSE", "5min", days=1
+                    )
+                    if not df_5.empty:
+                        today_candles = df_5[
+                            df_5["timestamp"].dt.date == today
+                        ] if "timestamp" in df_5.columns else df_5
+                        if not today_candles.empty:
+                            s.set_day_range(
+                                today_candles["high"].max(),
+                                today_candles["low"].min(),
+                            )
+
+            # --- GIFT Gap: approximate from prev close vs today's open ---
+            if isinstance(s, NiftyGIFTGapStrategy) and nifty_spot > 0:
+                if self._nifty_prev_close <= 0:
+                    nifty_tok = self.broker.lookup_token("NSE", "NIFTY")
+                    if nifty_tok:
+                        nifty_daily = self.historical.get_daily_candles(
+                            "NIFTY", nifty_tok, "NSE", days=5
+                        )
+                        if not nifty_daily.empty and len(nifty_daily) >= 2:
+                            self._nifty_prev_close = nifty_daily["close"].iloc[-2]
+                if self._nifty_prev_close > 0:
+                    gap_pct = ((nifty_spot - self._nifty_prev_close)
+                               / self._nifty_prev_close * 100)
+                    s.set_gap_data(
+                        gift_gap_pct=gap_pct,
+                        previous_close=self._nifty_prev_close,
+                        fii_net_buy=False,  # FII data not available via broker API
+                    )
+
+            # --- Event Day: check config for upcoming events ---
+            if isinstance(s, NiftyEventDayStrategy):
+                events_cfg = self.config.get("events", [])
+                for evt in events_cfg:
+                    evt_date = date.fromisoformat(evt.get("date", ""))
+                    days_away = (evt_date - today).days
+                    if 0 <= days_away <= 3:
+                        s.set_event(evt.get("name", "Unknown"), evt_date, today)
+                        break
+                else:
+                    if s.event_phase.value != "NO_EVENT":
+                        s.clear_event()
+
+    def _prepare_symbol_strategies(self, symbol: str, token: str, exchange: str,
+                                   intraday_df, daily_df, chain_analysis,
+                                   spot_price: float):
+        """Set up per-symbol strategy state (RSI divergence, multi-timeframe, etc.)."""
+        for s in self.strategies:
+            # RSI Divergence: check divergence on intraday data
+            if isinstance(s, RSIDivergenceStrategy):
+                if not intraday_df.empty:
+                    s.check_divergence(symbol, intraday_df)
+
+            # Multi-Timeframe: analyze all three timeframes
+            if isinstance(s, MultiTimeframeStrategy):
+                df_15min = self.historical.get_intraday_candles(
+                    symbol, token, exchange, "15min", days=5
+                )
+                s.analyze_timeframes(symbol, intraday_df, df_15min, daily_df)
+
+    def _process_single_symbol(self, symbol: str, token: str = "", spot_price: float = 0.0):
+        """Generate signal and potentially trade for a single symbol."""
+        exchange = "NSE"
+        if not token:
+            token = self.broker.lookup_token(exchange, symbol)
+            if not token:
+                return
+
+        # Get spot price if not provided
         if spot_price <= 0:
-            return
+            spot_price = self.broker.get_ltp(exchange, symbol, token)
+            if spot_price <= 0:
+                return
 
         # Get candle data
         intraday_df = self.historical.get_intraday_candles(
@@ -417,11 +591,19 @@ class TradingEngine:
             symbol, token, exchange, days=30
         )
 
-        # Get options chain
+        # Get options chain (reuse cached NIFTY chain to avoid duplicate API calls)
         expiry = get_next_expiry(symbol)
-        chain_analysis = self.options_chain.get_chain_analysis(
-            symbol, spot_price, expiry
-        )
+        if symbol == "NIFTY" and self._nifty_chain_cache is not None:
+            chain_analysis = self._nifty_chain_cache
+        else:
+            chain_analysis = self.options_chain.get_chain_analysis(
+                symbol, spot_price, expiry
+            )
+
+        # --- Wire strategies that need pre-processing ---
+        self._prepare_symbol_strategies(symbol, token, exchange,
+                                        intraday_df, daily_df, chain_analysis,
+                                        spot_price)
 
         # Generate signal
         sig = self.signal_engine.generate_signal(
@@ -484,19 +666,48 @@ class TradingEngine:
         if not open_positions:
             return
 
-        # Build price map
+        # Collect all tokens needed, then batch-fetch
+        option_tokens: dict[str, list[str]] = {}
+        spot_tokens: dict[str, str] = {}  # symbol -> token
+
+        for pos in open_positions:
+            option_tokens.setdefault(pos.exchange, []).append(pos.token)
+            if pos.symbol not in spot_tokens:
+                spot_tok = self.broker.lookup_token("NSE", pos.symbol)
+                if spot_tok:
+                    spot_tokens[pos.symbol] = spot_tok
+
+        # Batch fetch option LTPs
+        nse_spot_list = list(spot_tokens.values())
+        if nse_spot_list:
+            option_tokens.setdefault("NSE", []).extend(nse_spot_list)
+
+        ltp_map_all = {}
+        if hasattr(self.broker, "_batch_get_ltp"):
+            ltp_map_all = self.broker._batch_get_ltp(option_tokens)
+        else:
+            # Fallback to single calls
+            for pos in open_positions:
+                ltp = self.broker.get_ltp(pos.exchange, pos.trading_symbol, pos.token)
+                if ltp > 0:
+                    ltp_map_all[pos.token] = ltp
+            for sym, tok in spot_tokens.items():
+                ltp = self.broker.get_ltp("NSE", sym, tok)
+                if ltp > 0:
+                    ltp_map_all[tok] = ltp
+
+        # Build price maps for position manager
         price_map = {}
         spot_prices = {}
         for pos in open_positions:
-            ltp = self.broker.get_ltp(pos.exchange, pos.trading_symbol, pos.token)
+            ltp = ltp_map_all.get(pos.token, 0.0)
             if ltp > 0:
                 price_map[pos.token] = ltp
 
-            spot_token = self.broker.lookup_token("NSE", pos.symbol)
-            if spot_token:
-                spot = self.broker.get_ltp("NSE", pos.symbol, spot_token)
-                if spot > 0:
-                    spot_prices[pos.symbol] = spot
+        for sym, tok in spot_tokens.items():
+            spot = ltp_map_all.get(tok, 0.0)
+            if spot > 0:
+                spot_prices[sym] = spot
 
         self.position_manager.update_positions(
             price_map, spot_prices, self._entry_spot_prices
