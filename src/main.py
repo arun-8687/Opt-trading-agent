@@ -45,6 +45,11 @@ from src.strategies.nifty_oi_wall import NiftyOIWallStrategy
 from src.strategies.nifty_orb import NiftyORBStrategy
 from src.strategies.nifty_pcr_reversal import NiftyPCRReversalStrategy
 from src.strategies.nifty_vix_regime import NiftyVIXRegimeStrategy
+from src.strategies.earnings_play import EarningsPlayStrategy
+from src.strategies.volume_profile import VolumeProfileStrategy
+from src.strategies.bollinger_squeeze import BollingerSqueezeStrategy
+from src.strategies.fibonacci_retracement import FibonacciRetracementStrategy
+from src.strategies.sector_rotation import SectorRotationStrategy
 from src.utils.helpers import (
     get_next_expiry,
     is_market_open,
@@ -310,6 +315,63 @@ class TradingEngine:
                 bounce_sl_pct=strat_cfg.get("nifty_oi_wall", {}).get("bounce_sl_pct", 25),
                 break_sl_pct=strat_cfg.get("nifty_oi_wall", {}).get("break_sl_pct", 30),
                 proximity_points=strat_cfg.get("nifty_oi_wall", {}).get("proximity_points", 50),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        # --- Additional strategies ---
+        if strat_cfg.get("earnings_play", {}).get("enabled", True):
+            s = EarningsPlayStrategy(
+                min_score=strat_cfg.get("earnings_play", {}).get("min_score", 68),
+                pre_target_pct=strat_cfg.get("earnings_play", {}).get("pre_target_pct", 25),
+                post_target_pct=strat_cfg.get("earnings_play", {}).get("post_target_pct", 60),
+                pre_sl_pct=strat_cfg.get("earnings_play", {}).get("pre_sl_pct", 15),
+                post_sl_pct=strat_cfg.get("earnings_play", {}).get("post_sl_pct", 35),
+                min_gap_pct=strat_cfg.get("earnings_play", {}).get("min_gap_pct", 2.0),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("volume_profile", {}).get("enabled", True):
+            s = VolumeProfileStrategy(
+                min_score=strat_cfg.get("volume_profile", {}).get("min_score", 70),
+                bounce_target_pct=strat_cfg.get("volume_profile", {}).get("bounce_target_pct", 35),
+                break_target_pct=strat_cfg.get("volume_profile", {}).get("break_target_pct", 45),
+                bounce_sl_pct=strat_cfg.get("volume_profile", {}).get("bounce_sl_pct", 25),
+                break_sl_pct=strat_cfg.get("volume_profile", {}).get("break_sl_pct", 30),
+                proximity_pct=strat_cfg.get("volume_profile", {}).get("proximity_pct", 0.3),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("bollinger_squeeze", {}).get("enabled", True):
+            s = BollingerSqueezeStrategy(
+                min_score=strat_cfg.get("bollinger_squeeze", {}).get("min_score", 72),
+                target_pct=strat_cfg.get("bollinger_squeeze", {}).get("target_pct", 45),
+                stop_loss_pct=strat_cfg.get("bollinger_squeeze", {}).get("stop_loss_pct", 30),
+                max_bandwidth=strat_cfg.get("bollinger_squeeze", {}).get("max_bandwidth", 0.04),
+                min_expansion_ratio=strat_cfg.get("bollinger_squeeze", {}).get("min_expansion_ratio", 1.5),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("fibonacci_retracement", {}).get("enabled", True):
+            s = FibonacciRetracementStrategy(
+                min_score=strat_cfg.get("fibonacci_retracement", {}).get("min_score", 70),
+                target_pct=strat_cfg.get("fibonacci_retracement", {}).get("target_pct", 40),
+                stop_loss_pct=strat_cfg.get("fibonacci_retracement", {}).get("stop_loss_pct", 25),
+                proximity_pct=strat_cfg.get("fibonacci_retracement", {}).get("proximity_pct", 0.3),
+            )
+            self.strategies.append(s)
+            self.position_manager.register_strategy(s)
+
+        if strat_cfg.get("sector_rotation", {}).get("enabled", True):
+            s = SectorRotationStrategy(
+                min_score=strat_cfg.get("sector_rotation", {}).get("min_score", 72),
+                target_pct=strat_cfg.get("sector_rotation", {}).get("target_pct", 40),
+                stop_loss_pct=strat_cfg.get("sector_rotation", {}).get("stop_loss_pct", 28),
+                min_sector_rs=strat_cfg.get("sector_rotation", {}).get("min_sector_rs", 1.05),
+                min_stock_rs=strat_cfg.get("sector_rotation", {}).get("min_stock_rs", 1.03),
             )
             self.strategies.append(s)
             self.position_manager.register_strategy(s)

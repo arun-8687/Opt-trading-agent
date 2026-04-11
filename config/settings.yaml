@@ -169,6 +169,53 @@ strategies:
     break_sl_pct: 30
     min_score: 68
     proximity_points: 50
+  # --- Additional strategies ---
+  earnings_play:
+    enabled: true
+    min_score: 68
+    pre_target_pct: 25
+    post_target_pct: 60
+    pre_sl_pct: 15
+    post_sl_pct: 35
+    min_gap_pct: 2.0
+    post_entry_start: "10:00"
+  volume_profile:
+    enabled: true
+    min_score: 70
+    bounce_target_pct: 35
+    break_target_pct: 45
+    bounce_sl_pct: 25
+    break_sl_pct: 30
+    proximity_pct: 0.3
+    entry_start: "09:45"
+    entry_end: "14:00"
+  bollinger_squeeze:
+    enabled: true
+    min_score: 72
+    target_pct: 45
+    stop_loss_pct: 30
+    max_bandwidth: 0.04
+    min_expansion_ratio: 1.5
+    entry_start: "09:30"
+    entry_end: "14:00"
+  fibonacci_retracement:
+    enabled: true
+    min_score: 70
+    target_pct: 40
+    stop_loss_pct: 25
+    proximity_pct: 0.3
+    min_adx: 22
+    entry_start: "09:30"
+    entry_end: "14:00"
+  sector_rotation:
+    enabled: true
+    min_score: 72
+    target_pct: 40
+    stop_loss_pct: 28
+    min_sector_rs: 1.05
+    min_stock_rs: 1.03
+    entry_start: "10:00"
+    entry_end: "14:00"
 
 alerts:
   telegram_enabled: true
